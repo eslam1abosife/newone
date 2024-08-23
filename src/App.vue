@@ -73,7 +73,7 @@
           <label>{{ childProperty.name }}</label>
           <select
             v-model="childProperty.selectedChild"
-            @change="handlePropertySelection(childProperty, childIndex)"
+            @change="handlePropertySelection(childProperty, childIndex, true)"
             class="form-field"
           >
             <option value="" disabled>Select {{ childProperty.name }}</option>
@@ -187,7 +187,7 @@ export default {
         console.error("Error fetching properties:", error);
       }
     },
-    async handlePropertySelection(property, index) {
+    async handlePropertySelection(property, index, isChild = false) {
       if (property.selectedOption === "other") {
         property.otherValue = "";
       }
@@ -204,24 +204,51 @@ export default {
             }
           );
 
-          // بدلاً من استخدام this.$set، يمكنك تحديث الكائن مباشرةً
+          // Update the property with child properties
           const updatedProperty = {
             ...property,
-            childProperties: response.data.data.map((child) => ({
-              id: child.id,
-              name: child.name,
-              options: [...child.options, { id: "other", name: "Other" }],
-              selectedChild: null,
-              otherValue: null,
-            })),
+            childProperties: await this.fetchChildProperties(
+              response.data.data
+            ),
           };
 
-          // قم بتحديث الخصائص في this.properties
-          this.properties[index] = updatedProperty;
+          if (isChild) {
+            // Update the child property in the parent's child properties
+            this.$set(
+              this.properties[index],
+              "childProperties",
+              updatedProperty.childProperties
+            );
+          } else {
+            // Update the property in the properties list
+            this.properties[index] = updatedProperty;
+          }
         } catch (error) {
           console.error("Error fetching child properties:", error);
         }
       }
+    },
+    async fetchChildProperties(children) {
+      const childProperties = await Promise.all(
+        children.map(async (child) => {
+          const response = await axios.get(
+            `https://staging.mazaady.com/api/v1/get-options-child/${child.id}`,
+            {
+              headers: {
+                "private-key": "3%o8i}_;3D4bF]G5@22r2)Et1&mLJ4?$@+16",
+              },
+            }
+          );
+          return {
+            id: child.id,
+            name: child.name,
+            options: [...response.data.data, { id: "other", name: "Other" }],
+            selectedChild: null,
+            otherValue: null,
+          };
+        })
+      );
+      return childProperties;
     },
     submitForm() {
       this.submittedData = [
